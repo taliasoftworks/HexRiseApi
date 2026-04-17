@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run test)",
+      "Bash(npm run test:simulator)",
+      "Bash(npm run build)",
+      "Bash(npm run dev)",
+      "Bash(npm start)",
+      "Bash(npm install*)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx tsc --noEmit --pretty)",
+      "Bash(npx vitest*)",
+      "Bash(git status)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git branch*)",
+      "Bash(git stash list)",
+      "Bash(ls*)",
+      "Bash(cat package.json)",
+      "Bash(cat tsconfig.json)"
+    ]
+  }
+}

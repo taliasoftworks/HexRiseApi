@@ -8,7 +8,12 @@
     "build": "tsc && tsc-alias",
     "start": "node dist/index.js",
     "test": "vitest run src/test/unit",
-    "test:simulator": "vitest run src/test/simulator"
+    "test:simulator": "vitest run src/test/simulator",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "canvas": "^3.2.3",
@@ -18,17 +23,22 @@
     "morgan": "^1.10.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@keycloak/keycloak-admin-client": "^23.0.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/morgan": "^1.9.10",
     "@types/node": "^25.6.0",
     "@types/supertest": "^7.2.0",
+    "eslint": "^10.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.3",
     "supertest": "^7.2.2",
     "ts-node-dev": "^2.0.0",
     "tsc-alias": "^1.8.16",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.2",
     "vitest": "^4.1.4"
   }
 }

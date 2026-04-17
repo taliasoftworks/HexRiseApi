@@ -2,6 +2,6 @@ import { createApp } from "./app.js";
 
 const app = createApp();
 
-app.listen(3000, () => {
+app.listen(process.env.PORT, () => {
   console.log("Server running 🚀");
 });
