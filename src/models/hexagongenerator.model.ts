@@ -1,6 +1,6 @@
 import {
     ARCHETYPES_BY_BIOME,
-    BiomeId,
+    type BiomeId,
     DEFAULT_ARCHETYPES,
     ElementDefs,
     ElementId,
@@ -9,7 +9,7 @@ import {
     type GenerationContext,
     type HexArchetype
 } from "@/types/hexagon.types.js";
-import { RuleEngine } from "./rules.model.js";
+import { type RuleEngine } from "./rules.model.js";
 import { Hexagon } from "./hexagon.model.js";
 
 // =========================

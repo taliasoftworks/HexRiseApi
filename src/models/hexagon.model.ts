@@ -1,8 +1,10 @@
 import {
-    BiomeId,
+    type BiomeId,
     ElementDefs,
-    ElementId
+    type ElementId
 } from "@/types/hexagon.types.js";
+import { DomainError } from "@/errors/index.js";
+import { ErrorCode } from "@/types/errors.types.js";
 
 export class Hexagon {
     private data: Uint8Array;
@@ -11,7 +13,7 @@ export class Hexagon {
 
     constructor(biome: BiomeId, elements: ElementId[]) {
         if (elements.length !== 18) {
-            throw new Error("Must have 18 elementos. " + elements.length);
+            throw new DomainError(ErrorCode.HEXAGON_INVALID_SIZE, `Must have 18 elements, got ${elements.length}`);
         }
 
         this.biomeId = biome;
@@ -24,7 +26,7 @@ export class Hexagon {
 
     rotate(times: number = 1): void {
         if (times < 0 || times > 5) {
-            throw new Error("Rotation index out of range");
+            throw new DomainError(ErrorCode.HEXAGON_ROTATION_OUT_OF_RANGE, "Rotation index out of range");
         }
         this.rotation = times % 6;
     }
@@ -47,7 +49,7 @@ export class Hexagon {
 
     getElement(index: number): ElementId {
         if (index < 0 || index >= 18) {
-            throw new Error("Index out of range");
+            throw new DomainError(ErrorCode.HEXAGON_INDEX_OUT_OF_RANGE, "Index out of range");
         }
 
         const rotatedIndex = this.applyRotation(index);

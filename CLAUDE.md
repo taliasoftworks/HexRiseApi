@@ -28,13 +28,20 @@ src/
   routes/
     index.ts               # Route utility helpers
     world.routes.ts        # GET /world/map
+  errors/
+    AppError.ts            # Base error class — code: ErrorCode, statusCode, message
+    DomainError.ts         # Domain/validation errors (HTTP 400)
+    NotFoundError.ts       # 404 errors
+    index.ts               # Barrel export
   types/
     hexagon.types.ts       # ElementId, BiomeId enums + ElementDefinition
     hexboard.types.ts      # Board/grid types
     rules.types.ts         # IRule interface
     express.types.ts       # Express + Keycloak request extension
-  middlewares/             # Reserved — empty
-  test/
+    errors.types.ts        # ErrorCode enum
+  middlewares/
+    error.middleware.ts    # Global error handler — AppError → JSON, unknown → 500 + log
+  __test__/
     unit/                  # Fast unit tests (npm test)
     simulator/             # Visual simulation tests — generates PNGs
     utils/                 # Color maps, CustomReporter, output dir helper
@@ -76,6 +83,51 @@ npx tsc --noEmit         # type-check without building
 - Simulator tests: `src/test/simulator/` — generate PNG to `tests/output/`
 - `CustomReporter.ts` provides emoji/color output formatting
 
+## Error System
+
+**Jerarquía:**
+```
+AppError (base)
+├── DomainError      → HTTP 400 — violaciones de invariantes de dominio
+└── NotFoundError    → HTTP 404 — recurso no encontrado
+```
+
+**Uso en modelos/services:**
+```typescript
+import { DomainError } from '@/errors/index.js';
+import { ErrorCode } from '@/types/errors.types.js';
+
+throw new DomainError(ErrorCode.HEXBOARD_POSITION_OCCUPIED, 'mensaje');
+```
+
+**Respuesta HTTP generada por `errorMiddleware`:**
+```json
+{ "error": { "code": "HEXBOARD_POSITION_OCCUPIED", "message": "mensaje" } }
+```
+
+**Códigos definidos en `ErrorCode`:**
+| Código | Origen |
+|---|---|
+| `HEXAGON_INVALID_SIZE` | `Hexagon` constructor |
+| `HEXAGON_ROTATION_OUT_OF_RANGE` | `Hexagon.rotate()` |
+| `HEXAGON_INDEX_OUT_OF_RANGE` | `Hexagon.getElement()` |
+| `HEXBOARD_OUT_OF_BOUNDS` | `HexBoard.placeHex()` |
+| `HEXBOARD_POSITION_OCCUPIED` | `HexBoard.placeHex()` |
+| `HEXBOARD_NO_ADJACENT` | `HexBoard.placeHex()` |
+| `HEXBOARD_NEIGHBOR_CONFLICT` | `HexBoard.placeHex()` |
+| `NOT_FOUND` | `NotFoundError` |
+| `INTERNAL_ERROR` | errores inesperados (middleware) |
+
+**Tests — helper para verificar tipo y código:**
+```typescript
+function expectDomainError(fn: () => unknown, code: ErrorCode): void {
+    let caught: unknown;
+    try { fn(); } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(DomainError);
+    expect((caught as DomainError).code).toBe(code);
+}
+```
+
 ## API Pattern
 ```typescript
 // Controllers extend BaseController; useController handles errors + response
@@ -90,4 +142,3 @@ router.get('/map', (req, res) => useController(WorldController, req, res, c => c
 - No database — all state is in-memory; generation is purely algorithmic
 - Keycloak auth is stubbed via types only — `req.user` comes from Keycloak token
 - `tsc-alias` runs post-build to rewrite `@/` aliases in `dist/`
-- Morgan is installed but not wired up in `app.ts`

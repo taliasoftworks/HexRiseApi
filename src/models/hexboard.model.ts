@@ -1,4 +1,6 @@
-import { BiomeId, ElementDefs, ElementId, HEX_NEIGHBORS } from "@/types/hexagon.types.js";
+import { type BiomeId, ElementDefs, ElementId, HEX_NEIGHBORS } from "@/types/hexagon.types.js";
+import { DomainError } from "@/errors/index.js";
+import { ErrorCode } from "@/types/errors.types.js";
 import { DEFAULT_HEXBOARD_HEIGHT, DEFAULT_HEXBOARD_WIDTH, type ConnectedGroup, type Coord, type NodeRef } from "@/types/hexboard.types.js";
 import type { Hexagon } from "./hexagon.model.js";
 import { HexagonGenerator } from "./hexagongenerator.model.js";
@@ -41,13 +43,12 @@ export class HexBoard {
     // =========================
 
     placeHex(x: number, y: number, hex: Hexagon): boolean {
-        if (!this.isInside(x, y)) throw new Error("Place hex put of bounds");
-        if (this.grid[y][x]) throw new Error("There is a hexagon already placed in this position");
-        if (!this.hasAdjacentHex(x, y)) throw new Error("No adyacent hexagons. Must place next to existing ones");
+        if (!this.isInside(x, y)) throw new DomainError(ErrorCode.HEXBOARD_OUT_OF_BOUNDS, "Position out of bounds");
+        if (this.grid[y][x]) throw new DomainError(ErrorCode.HEXBOARD_POSITION_OCCUPIED, "There is a hexagon already placed in this position");
+        if (!this.hasAdjacentHex(x, y)) throw new DomainError(ErrorCode.HEXBOARD_NO_ADJACENT, "No adjacent hexagons — must place next to existing ones");
 
-        //VALIDACIÓN DE CARAS
         if (!this.canPlaceConsideringNeighbors(x, y, hex)) {
-            throw new Error("Cannot place hex considering neighbors");
+            throw new DomainError(ErrorCode.HEXBOARD_NEIGHBOR_CONFLICT, "Cannot place hex — incompatible with neighboring hexagons");
         }
 
         this.grid[y][x] = hex;

@@ -2,7 +2,16 @@ import { Hexagon } from "@/models/hexagon.model.js";
 import { HexBoard } from "@/models/hexboard.model.js";
 import { BiomeId, ElementDefs, ElementId } from "@/types/hexagon.types.js";
 import { DEFAULT_HEXBOARD_HEIGHT, DEFAULT_HEXBOARD_WIDTH } from "@/types/hexboard.types.js";
+import { DomainError } from "@/errors/index.js";
+import { ErrorCode } from "@/types/errors.types.js";
 import { describe, expect, it } from "vitest";
+
+function expectDomainError(fn: () => unknown, code: ErrorCode): void {
+    let caught: unknown;
+    try { fn(); } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(DomainError);
+    expect((caught as DomainError).code).toBe(code);
+}
 
 describe("Hexboard connections tests", () => {
     it("Only should allow place hexagons compatible with neightbours)", () => {
@@ -22,10 +31,10 @@ describe("Hexboard connections tests", () => {
         ]);
         grid[0][0] = hexagon1;
         const board = new HexBoard(BiomeId.Grassland, grid);
-        expect(()=>board.placeHex(0, 0, hexagon2)).toThrow("There is a hexagon already placed in this position");
+        expectDomainError(() => board.placeHex(0, 0, hexagon2), ErrorCode.HEXBOARD_POSITION_OCCUPIED);
         hexagon2.rotate(1)
-        expect(()=>board.placeHex(1, 0, hexagon2)).toThrow("Cannot place hex considering neighbors");
-        expect(()=>board.placeHex(2, 0, hexagon2)).toThrow("No adyacent hexagons. Must place next to existing ones");
+        expectDomainError(() => board.placeHex(1, 0, hexagon2), ErrorCode.HEXBOARD_NEIGHBOR_CONFLICT);
+        expectDomainError(() => board.placeHex(2, 0, hexagon2), ErrorCode.HEXBOARD_NO_ADJACENT);
         hexagon2.rotate(0)
         expect(board.placeHex(1, 0, hexagon2)).toBe(true);
         
