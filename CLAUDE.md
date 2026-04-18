@@ -1,7 +1,12 @@
 # HexRise API — Claude Context
 
 ## Project Overview
-Procedural hexagon world-map generator exposed as a REST API. Each hexagon has 18 triangular sections (6 exterior, 6 interior, 6 center) filled with terrain elements. A `HexBoard` arranges hexagons on a 50×50 grid with neighbor-compatibility rules, and a `RuleEngine` governs element distribution during generation. The world is divided into **areas** (each one a HexBoard) identified by `(worldX, worldY)` coordinates, stored in MongoDB.
+HexRise is a **persistent online strategy game** where each player embodies a god controlling heroes. The world is infinite, divided into **areas** (HexBoards of 50×50) identified by `(worldX, worldY)` coordinates. The game is turn-based per area, progresses through historical epochs (Paleolithic → Futuristic), and resets completely every ~1 month via a **Cataclysm** — only player score/experience survive.
+
+The core mechanic is placing hexagon pieces to build each area's board. Each hexagon has 18 triangular sections filled with terrain elements. A `RuleEngine` governs element distribution and neighbor compatibility. Placed pieces score points based on element matches with adjacent hexagons.
+
+Full game documentation: `docs/game-mechanics.md`, `docs/game-rules.md`, `docs/data-model.md`.
+Development roadmap: `todo.txt`.
 
 ## Tech Stack
 - **Runtime**: Node.js (ES2022, ESM — `"type": "module"`)
@@ -236,7 +241,21 @@ export default class AreaController extends BaseController {
 | GET | `/area/current` | ✅ | Devuelve el área actual del jugador (la crea si es la primera vez) |
 | GET | `/world/map` | ❌ | Stub — sin implementar |
 
+### Endpoints planificados (prioridad — ver todo.txt) (ver todo.txt)
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| POST | `/player/init` | ✅ | Inicializa jugador: héroe + 5 piezas + área |
+| GET | `/player/me` | ✅ | Estado completo del jugador |
+| GET | `/player/me/hand` | ✅ | Mano actual (5 piezas) |
+| POST | `/player/me/place-piece` | ✅ | Coloca una pieza, calcula puntos, refresca mano |
+| GET | `/player/me/heroes` | ✅ | Lista de héroes del jugador |
+
 ## Important Notes
 - `tsc-alias` runs post-build to rewrite `@/` aliases in `dist/`
 - Keycloak public key is read from `KEYCLOAK_PUBLIC_KEY` env var (raw Base64 from Realm Settings)
 - Area coordinates are unbounded integers — the world is infinite
+
+## Documentation
+See @docs/game-rules.md for complete game rules.
+See @docs/game-mechanics.md for points game mechanics and rules.
+See @docs/data-model.md to check data modeling.

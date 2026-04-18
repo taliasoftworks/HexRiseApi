@@ -1,0 +1,111 @@
+HexRise API — Roadmap
+=====================
+Legend: [ ] todo  [~] in progress  [x] done
+
+=== PRIORITY 1 — Player Initialization Endpoints ===
+
+[ ] POST /player/init
+    - Called on first login or after a Cataclysm reset
+    - Creates Player document if not exists (keycloakId from JWT)
+    - Generates initial hero (random stats: strength, agility, intelligence)
+    - Generates initial 5-piece hand (random hexagons)
+    - Calls getOrCreatePlayerArea to assign/create an area (min distance 5 from others)
+    - Returns: { player, hero, area, pieceHand }
+
+[ ] GET /player/me
+    - Returns current player state: score, experience, currentArea ref, pieceHand, heroes
+    - Requires auth
+
+[ ] GET /player/me/hand
+    - Returns the player's current 5-piece hand
+    - Requires auth
+
+[ ] POST /player/me/place-piece
+    - Body: { pieceIndex: 0-4, boardX, boardY, rotation }
+    - Validates placement rules (adjacency, no overlap, neighbor compatibility)
+    - Calculates score: base + side-match bonus + perfect-fit bonus
+    - Updates area hexData, player score, refreshes hand (remove placed, append new random)
+    - Returns: { score, bonusPoints, updatedArea, newPiece }
+    - Requires auth
+
+=== PRIORITY 2 — Hero System ===
+
+[ ] Hero model (src/models/db/hero.db.model.ts)
+    - Fields: playerId, areaId, name, level, strength, agility, intelligence, xp, epoch
+
+[ ] Hero generation service (src/services/hero.service.ts)
+    - generateHero(playerId, areaId, epoch): random stats based on epoch
+
+[ ] GET /player/me/heroes
+    - List all heroes for current player
+
+[ ] POST /player/me/heroes/:heroId/action
+    - Perform a hero action (move, attack, build — stub for now)
+
+=== PRIORITY 3 — Turn System ===
+
+[ ] Turn model / state tracking per area
+    - Track whose turn it is in a shared area
+    - Track action points remaining per player
+
+[ ] POST /area/:worldX/:worldY/end-turn
+    - End the current player's turn
+    - Advance to next player or AI phase
+
+[ ] AI turn execution (stub)
+    - After all players act, AI generates one hostile/environmental event
+
+=== PRIORITY 4 — World & Area Endpoints ===
+
+[x] GET /area/current — returns or creates player's current area
+[ ] GET /world/map — return list of existing areas with coordinates (for minimap)
+[ ] POST /area/travel
+    - Move player to an adjacent or new area
+    - Triggers area creation if target does not exist
+    - Enforces min-distance spawn rules
+
+=== PRIORITY 5 — Cataclysm System ===
+
+[ ] Cataclysm scheduled job (cron)
+    - Deletes all Area documents
+    - Clears all Player.currentArea refs
+    - Deletes all Hero documents
+    - Preserves Player.score and Player.experience
+
+[ ] GET /world/cataclysm-timer
+    - Returns time until next Cataclysm
+
+[ ] POST /player/me/spend-experience
+    - Spend accumulated XP on permanent upgrades between cycles
+
+=== PRIORITY 6 — Scoring & Progression ===
+
+[ ] Score calculation service (src/services/score.service.ts)
+    - calculatePlacementScore(hex, board, position): base + side bonuses + perfect fit
+
+[ ] Epoch advancement logic
+    - Check epoch thresholds based on board state and settlements
+    - Auto-advance epoch when conditions are met
+
+=== PRIORITY 7 — Multiplayer / Presence ===
+
+[ ] Area occupancy tracking
+    - Track which players are currently in each area
+
+[ ] Online/offline detection
+    - Heartbeat endpoint or WebSocket presence
+    - Trigger AI control when a player goes offline mid-area-turn
+
+[ ] Epoch balancing on area spawn
+    - When creating a new area near existing players, match epoch proximity
+
+=== FUTURE / BACKLOG ===
+
+[ ] WebSocket support for real-time turn notifications
+[ ] Settlement / city system
+[ ] Building construction
+[ ] Additional elements: Farm, Workshop, Temple, etc.
+[ ] Additional biomes: Volcanic, Swamp, etc.
+[ ] Push notifications for Cataclysm warning
+[ ] Leaderboard endpoint (persistent score ranking)
+[ ] Replay / history of last cycle
