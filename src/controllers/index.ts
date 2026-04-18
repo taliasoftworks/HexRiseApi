@@ -23,4 +23,8 @@ export abstract class BaseController {
     protected get user() {
         return this.locals.user;
     }
+
+    protected get player() {
+        return this.locals.player;
+    }
 }

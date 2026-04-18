@@ -5,8 +5,8 @@ const app = createApp();
 
 connectDB()
     .then(() => {
-        app.listen(process.env.PORT ?? 3000, () => {
-            console.log("Server running on port", process.env.PORT ?? 3000);
+        app.listen(process.env.SERVER_PORT ?? 3000, () => {
+            console.log("Server running on port", process.env.SERVER_PORT ?? 3000);
         });
     })
     .catch(err => {

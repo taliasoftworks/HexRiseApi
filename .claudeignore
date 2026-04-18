@@ -4,3 +4,4 @@ tests/output/
 package-lock.json
 *.png
 *.jpg
+keycloak_config

@@ -1,12 +1,13 @@
+import type { DocumentType } from '@typegoose/typegoose';
 import type { BiomeId } from '@/types/hexagon.types.js';
 import { BIOMES } from '@/types/hexagon.types.js';
 import { DEFAULT_HEXBOARD_WIDTH, DEFAULT_HEXBOARD_HEIGHT } from '@/types/hexboard.types.js';
 import { AreaModel } from '@/models/db/area.db.model.js';
-import { PlayerModel } from '@/models/db/player.db.model.js';
+import type { Player } from '@/models/db/player.db.model.js';
 import { HexBoard } from '@/models/hexboard.model.js';
 import { encodeHexRecords, type HexRecord } from '@/utils/hex.encoding.js';
-import type { DocumentType } from '@typegoose/typegoose';
-import type { Area } from '@/models/db/area.db.model.js';
+import { AppError } from '@/errors/index.js';
+import { ErrorCode } from '@/types/errors.types.js';
 
 const MIN_AREA_DISTANCE = 5;
 
@@ -20,22 +21,17 @@ export type AreaResponse = {
 };
 
 export class AreaService {
-    async getOrCreatePlayerArea(keycloakSub: string): Promise<AreaResponse> {
-        let player = await PlayerModel.findOne({ keycloakId: keycloakSub })
-            .populate<{ currentArea: DocumentType<Area> | null }>('currentArea')
-            .lean();
-
-        if (!player) {
-            player = await PlayerModel.create({ keycloakId: keycloakSub }) as any;
+    async getOrCreateArea(player: DocumentType<Player>): Promise<AreaResponse> {
+        if (player.currentArea) {
+            const area = await AreaModel.findById(player.currentArea).lean();
+            if (!area) throw new AppError(ErrorCode.NOT_FOUND, 'Area not found', 404);
+            return toResponse(area);
         }
 
-        const populated = (player as any).currentArea as DocumentType<Area> | null | undefined;
-        if (populated) return toResponse(populated);
-
-        return this.createAreaForPlayer(keycloakSub);
+        return this.createAreaForPlayer(player);
     }
 
-    private async createAreaForPlayer(keycloakSub: string): Promise<AreaResponse> {
+    private async createAreaForPlayer(player: DocumentType<Player>): Promise<AreaResponse> {
         const existingCoords = await AreaModel.find({}, { worldX: 1, worldY: 1, _id: 0 }).lean();
 
         const coords = findAvailableCoords(existingCoords as { worldX: number; worldY: number }[]);
@@ -51,10 +47,8 @@ export class AreaService {
             hexCount,
         });
 
-        await PlayerModel.updateOne(
-            { keycloakId: keycloakSub },
-            { currentArea: area._id },
-        );
+        player.currentArea = area._id;
+        await player.save();
 
         return toResponse(area);
     }
@@ -64,7 +58,7 @@ export class AreaService {
 // HELPERS
 // =========================
 
-function toResponse(area: { worldX: number; worldY: number; biome: number; hexData?: Buffer | null; hexCount: number }): AreaResponse {
+function toResponse(area: { worldX: number; worldY: number; biome: number; hexData?: Buffer | null }): AreaResponse {
     return {
         areaX: area.worldX,
         areaY: area.worldY,
@@ -97,7 +91,6 @@ function encodeBoard(board: HexBoard): { hexData: Buffer; hexCount: number } {
 function findAvailableCoords(existing: { worldX: number; worldY: number }[]): { x: number; y: number } {
     if (existing.length === 0) return { x: 0, y: 0 };
 
-    // Chebyshev spiral search — checks border ring by ring from origin
     for (let radius = 0; radius <= 100_000; radius++) {
         for (let dx = -radius; dx <= radius; dx++) {
             for (let dy = -radius; dy <= radius; dy++) {

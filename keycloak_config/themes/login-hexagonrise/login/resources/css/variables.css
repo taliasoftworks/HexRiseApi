@@ -1,0 +1,65 @@
+:root {
+  /* ESTILOS GENERALES */
+  /* BLANCO*/
+  /* CAJAS con el fondo blanco */
+  --light-primary-color: white;
+  --light-primary-color-opacity: rgba(136, 138, 138, 0.8);
+
+  /* TEXTOS */
+  --light-secondary-link-color: black;
+
+  /* BUTTON PRINCIPAL */
+  --light-major-color: #c2e7ff;
+  --light-major-text-color-button: #2962ff;
+  --light-major-text-color-button-hover: #2962ff;
+  --border-color-major-button: #747775;  
+
+  /* BUTTON PRINCIPAL SECUNDARIO*/
+  --light-secundary-color: #c2e7ff;
+  --light-secundary-text-color-button: #001d35;
+
+  /* BUTTON DISABLED */
+  --light-disabled-color: #f1f1f1;
+  --light-disabled-text-color-button: #ccc;
+
+  --border-radius: 5px;
+
+  /* fondos cuando es blanco y textos */
+  --light-background: #f5f2f2;
+  /* --light-text: #5d5b5b; */
+  --light-text: #48718d;
+  --light-background-hover: #cbced0;
+  --light-text-hover-color: white;
+  --light-text-hover:black;
+
+  /* textos */
+  --letter-spacing: 1px;
+  --line-height: 1.2em;
+  --word-spacing: 0.25em;
+  --general-padding: 10px;
+  --font-size: clamp(1rem, 0.3043rem + 3.4786vw, 1.2rem);
+  --max-width-default: 100%;
+
+  /* textos  cabeceras */
+  --font-size-titles-h1: clamp(1.5rem, 0.3043rem + 3.4786vw, 1.2rem);
+  --text-color-titles-h1: black;
+  --font-size-titles-h3: clamp(1rem, 0.3043rem + 3.4786vw, 1.2rem);
+  --text-color-titles-h3: #6cbeed;
+  --font-size-titles-h4: clamp(1rem, 0.3043rem + 3.4786vw, 1.2rem);
+  --text-color-titles-h4: #6cbeed;
+
+  /* MODAL */
+  --width-modal: 71vw;
+
+  /* COLORES REDES SOCIALES */
+  --color-facebook: #3866a3;
+  --color-twitter: #00abee;
+  --color-linkedin: #0e77a8;
+  --color-instagram: #f09433;
+  --color-tiktok: black;
+
+  /*TAMAÑO ICONOS*/
+  --font-size-icon: 15px;
+  --font-size-icon-avatar: 13px;
+
+}

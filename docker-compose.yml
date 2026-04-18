@@ -1,0 +1,174 @@
+services:
+
+
+    # hexagonrise_cdn:
+    #     image: halverneus/static-file-server:latest
+    #     restart: always
+    #     container_name: hexagonrise_cdn_${NODE_ENV}
+    #     env_file: './.env.example'
+    #     volumes:
+    #         - files:/web/files
+    #         #- ./files/public:/web
+    #     ports:
+    #         - "${CDN_PORT}:8080"
+    #     environment:
+    #         - FOLDER=/web
+    #     networks:
+    #       - internal_network
+
+  
+    hexagonrise_server:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: hexagonrise_server
+        container_name: hexagonrise_server_${NODE_ENV}
+        restart: always
+        env_file: './.env.example'
+        volumes:
+            - files:/home/node/app/dist/files
+        depends_on: 
+            - hexagonrise_db
+            #- hexagonrise_cdn
+            #- hexagonrise_redis
+            - hexagonrise_keycloak
+
+        ports:
+            - "${SERVER_PORT}:${SERVER_PORT}"
+        networks:
+          - internal_network
+
+            
+    # hexagonrise_redis:
+    #     container_name: hexagonrise_redis_${NODE_ENV}
+    #     image: redis
+    #     env_file: './.env.example'
+    #     restart: always
+    #     ports:
+    #         - '${LOCALHOST_REDIS_PORT}:6379'
+    #     volumes:
+    #         - redis_data:/data
+    #     networks:
+    #       - internal_network
+
+    hexagonrise_db:
+        container_name: hexagonrise_db_${NODE_ENV}
+        image: mongo:6.0.5
+        env_file: './.env.example'
+        restart: always
+        volumes:
+            - data:/data/db
+            - config:/data/configdb
+        ports:
+            - '${LOCALHOST}:${MONGO_DB_PORT}:${MONGO_DB_PORT}'
+        command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO_DB_PORT}"]
+        extra_hosts:
+          - "host.docker.internal:host-gateway"
+        healthcheck:
+          test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'hexagonrise_db:${MONGO_DB_PORT}'},{_id:1,host:'hexagonrise_db2:${MONGO_DB2_PORT}'},{_id:2,host:'hexagonrise_db3:${MONGO_DB3_PORT}'}]}) }" | mongosh --port ${MONGO_DB_PORT} --quiet
+          interval: 5s
+          timeout: 30s
+          start_period: 0s
+          retries: 30
+        networks:
+          - internal_network
+
+
+    hexagonrise_db2:
+        container_name: hexagonrise_db2_${NODE_ENV}
+        image: mongo:6.0.5
+        env_file: './.env.example'
+        restart: always
+        volumes:
+            - data2:/data/db
+            - config2:/data/configdb
+        ports:
+            - '${LOCALHOST}:${MONGO_DB2_PORT}:${MONGO_DB2_PORT}'
+        command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO_DB2_PORT}"]
+        extra_hosts:
+          - "host.docker.internal:host-gateway"
+        networks:
+          - internal_network
+
+    hexagonrise_db3:
+        container_name: hexagonrise_db3_${NODE_ENV}
+        image: mongo:6.0.5
+        env_file: './.env.example'
+        restart: always
+        volumes:
+            - data3:/data/db
+            - config3:/data/configdb
+        ports:
+            - '${LOCALHOST}:${MONGO_DB3_PORT}:${MONGO_DB3_PORT}'
+        command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO_DB3_PORT}"]
+        extra_hosts:
+          - "host.docker.internal:host-gateway"
+        networks:
+          - internal_network
+
+    
+    hexagonrise_keycloak:
+        build:
+            context: ./keycloak_config
+            dockerfile: Dockerfile
+        #image: quay.io/keycloak/keycloak:23.0.3
+        #image: jboss/keycloak:latest
+        container_name: keycloak_hexagonrise_${NODE_ENV}
+        env_file: './.env.example'
+        restart: always
+        ports:
+          - "$KEYCLOAK_PORT:8080"
+        depends_on:
+          - postgress
+        environment:
+          PROXY_ADDRESS_FORWARDING: "true"
+          KEYCLOAK_ADMIN: admin
+          KEYCLOAK_ADMIN_PASSWORD: $KEYCLOAK_PASSWORD
+          DB_VENDOR: postgres
+          DB_ADDR: postgress
+          DB_USER: keycloak
+          DB_PASSWORD: $POSTGRESS_PASSWORD
+          #KC_HOSTNAME: localhost
+          #KC_HOSTNAME_STRICT: false
+          #KC_HTTP_ENABLED: true
+          #KC_PROXY: edge
+        entrypoint: ['/opt/keycloak/bin/kc.sh', 'start-dev']
+        volumes:
+          #- ./keycloak/:/opt/keycloak/data/import:ro
+          - ./keycloak_config/themes/:/opt/keycloak/themes/
+          - keycloak_embed_data:/opt/keycloak/data/
+        extra_hosts:
+          - "host.docker.internal:host-gateway"
+        networks:
+          - internal_network
+
+
+    postgress:
+        container_name: keycloak_hexagonrise_postgress_${NODE_ENV}
+        restart: unless-stopped
+        image: postgres:13.2
+        env_file: './.env.example'
+        volumes:
+          - keycloak_data:/var/lib/postgresql/data
+        environment:
+          POSTGRES_DB: keycloak
+          POSTGRES_USER: keycloak
+          POSTGRES_PASSWORD: $POSTGRESS_PASSWORD
+        networks:
+          - internal_network
+
+networks:
+  internal_network:
+    driver: bridge
+
+volumes:
+    data:
+    config:
+    data2:
+    config2:
+    data3:
+    config3:
+    files:
+    redis_data:
+    keycloak_data:
+    keycloak_embed_data:

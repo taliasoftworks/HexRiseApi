@@ -1,33 +1,43 @@
 # HexRise API — Claude Context
 
 ## Project Overview
-Procedural hexagon world-map generator exposed as a REST API. Each hexagon has 18 triangular sections (6 exterior, 6 interior, 6 center) filled with terrain elements. A `HexBoard` arranges hexagons on a 50×50 grid with neighbor-compatibility rules, and a `RuleEngine` governs element distribution during generation.
+Procedural hexagon world-map generator exposed as a REST API. Each hexagon has 18 triangular sections (6 exterior, 6 interior, 6 center) filled with terrain elements. A `HexBoard` arranges hexagons on a 50×50 grid with neighbor-compatibility rules, and a `RuleEngine` governs element distribution during generation. The world is divided into **areas** (each one a HexBoard) identified by `(worldX, worldY)` coordinates, stored in MongoDB.
 
 ## Tech Stack
 - **Runtime**: Node.js (ES2022, ESM — `"type": "module"`)
 - **Language**: TypeScript 6 — strict mode, `verbatimModuleSyntax`
 - **API**: Express 5
+- **Database**: MongoDB via Mongoose + Typegoose (decorators)
 - **Testing**: Vitest 4 (globals enabled — no imports needed in tests)
 - **Visualization**: `canvas` library (PNG output in `tests/output/`)
-- **Auth**: Keycloak (types/stubs only, not yet implemented)
+- **Auth**: Keycloak — JWT RS256 verified with `jose` using `KEYCLOAK_PUBLIC_KEY` from env
 - **Build**: `tsc` + `tsc-alias` for path alias resolution
 
 ## Directory Structure
 ```
 src/
   app.ts                   # Express factory — createApp()
-  index.ts                 # Server entry — port 3000
+  index.ts                 # Server entry — connectDB() then listen
+  db/
+    connection.ts          # Mongoose connect — reads MONGODB_URI from env
   controllers/
     index.ts               # BaseController + useController wrapper
     world.controller.ts    # WorldController stub
+    area.controller.ts     # AreaController — GET /area/current
   models/
     hexagon.model.ts       # Core 18-slot Uint8Array hexagon entity
     hexagongenerator.model.ts  # Procedural generation (5 archetypes)
     hexboard.model.ts      # 50×50 grid + neighbor validation + flood-fill groups
     rules.model.ts         # RuleEngine: 4 rule implementations
+    db/
+      area.db.model.ts     # Typegoose Area document (worldX, worldY, biome, hexData, hexCount)
+      player.db.model.ts   # Typegoose Player document (keycloakId, currentArea ref)
+  services/
+    area.service.ts        # getOrCreatePlayerArea — find/create + encode board
   routes/
-    index.ts               # Route utility helpers
+    index.ts               # useController helper
     world.routes.ts        # GET /world/map
+    area.routes.ts         # GET /area/current (auth required)
   errors/
     AppError.ts            # Base error class — code: ErrorCode, statusCode, message
     DomainError.ts         # Domain/validation errors (HTTP 400)
@@ -35,12 +45,15 @@ src/
     index.ts               # Barrel export
   types/
     hexagon.types.ts       # ElementId, BiomeId enums + ElementDefinition
-    hexboard.types.ts      # Board/grid types
+    hexboard.types.ts      # Board/grid types + DEFAULT_HEXBOARD_WIDTH/HEIGHT
     rules.types.ts         # IRule interface
     express.types.ts       # Express + Keycloak request extension
     errors.types.ts        # ErrorCode enum
   middlewares/
     error.middleware.ts    # Global error handler — AppError → JSON, unknown → 500 + log
+    auth.middleware.ts     # JWT RS256 verification — sets res.locals.user.id = sub
+  utils/
+    hex.encoding.ts        # Binary pack/unpack — 10 bytes per hexagon
   __test__/
     unit/                  # Fast unit tests (npm test)
     simulator/             # Visual simulation tests — generates PNGs
@@ -66,21 +79,90 @@ Use `import type` for type-only imports (`verbatimModuleSyntax` enforces this).
 | **Rotation** | 0-5; slot access is rotation-aware |
 | **Generation archetypes** | `uniform`, `single_spike`, `sparse`, `path`, `normal` |
 | **RuleEngine rules** | MaxThreeElements, PriorityConflict, InitialWeight, OuterRepetition |
+| **Area** | One HexBoard on the world grid; identified by `(worldX, worldY)` |
+| **World distance** | Chebyshev: `max(|Δx|, |Δy|)`; new areas spawn ≥ 5 from all others |
+
+## Database Layer
+
+### Typegoose models — `src/models/db/`
+`experimentalDecorators: true` is set in tsconfig (required by Typegoose).
+
+```typescript
+// All prop types must be explicit — project does NOT use emitDecoratorMetadata
+@prop({ required: true, type: Number }) worldX!: number;
+@prop({ type: Buffer }) hexData?: Buffer;
+@prop({ ref: () => Area }) currentArea?: Ref<Area>;
+```
+
+**Area** (`areas` collection):
+| Field | Type | Description |
+|---|---|---|
+| `worldX` / `worldY` | Number | Unique area coordinates. Compound unique index. |
+| `biome` | Number | BiomeId — shared by all hexagons in the area |
+| `hexData` | Buffer | Packed binary — see Hex Encoding section |
+| `hexCount` | Number | Number of placed hexagons |
+
+**Player** (`players` collection):
+| Field | Type | Description |
+|---|---|---|
+| `keycloakId` | String | Keycloak `sub` claim. Unique index. |
+| `currentArea` | Ref\<Area\> | ObjectId reference to the player's active area |
+
+### Service pattern
+`src/services/area.service.ts` — no Express types, pure business logic.
+DB queries go directly in services for now (no separate repository layer yet).
+
+## Hex Encoding — `src/utils/hex.encoding.ts`
+
+Binary format: **10 bytes per hexagon** (sparse — only placed hexagons are stored).
+
+```
+Bytes 0-1  uint16 BE  grid index = y × BOARD_WIDTH + x   (0–2499 for 50×50)
+Bytes 2-8  7 bytes    18 elements × 3 bits packed         (54 bits + 2 padding)
+Byte  9    uint8      rotation in bits 0-2                (0–5)
+```
+
+Biome is stored at area level, not per-hexagon. Full 50×50 board → ~24 KB raw.
+The `hexagons` field in API responses is **base64-encoded** Buffer.
+
+Increasing `DEFAULT_HEXBOARD_WIDTH/HEIGHT` in `src/types/hexboard.types.ts` is the only change needed to support larger boards.
+
+## Auth Middleware — `src/middlewares/auth.middleware.ts`
+
+- Verifies `Authorization: Bearer <jwt>` using RS256 with `KEYCLOAK_PUBLIC_KEY` from env
+- Keycloak provides the raw Base64 key (no PEM headers) — the middleware wraps it automatically
+- Sets `res.locals.user = { id: payload.sub }` on success
+- Always returns 401 (`PLAYER_NOT_AUTHENTICATED`) on failure — **controllers don't re-check auth**
+- Public key is cached in memory after first verification
+
+Apply to routes that require authentication:
+```typescript
+router.get('/current', authMiddleware, useController(AreaController, c => c.getPlayerArea));
+```
 
 ## Scripts
 ```bash
 npm run dev              # ts-node-dev hot reload (development)
 npm run build            # tsc + tsc-alias (outputs to dist/)
 npm start                # run compiled dist/index.js
-npm test                 # vitest unit tests (src/test/unit)
+npm test                 # vitest unit tests (src/__test__/unit)
 npm run test:simulator   # vitest simulator — canvas PNG rendering
 npx tsc --noEmit         # type-check without building
 ```
 
+## Environment Variables
+```bash
+PORT=3000
+NODE_ENV=development
+MONGODB_URI=mongodb://localhost:27017/hexrise
+# Keycloak: Realm Settings → Keys → RSA → Public Key (raw Base64, no PEM headers)
+KEYCLOAK_PUBLIC_KEY=MIIBIjAN...
+```
+
 ## Testing Conventions
 - Vitest globals (`describe`, `it`, `expect`, `beforeEach`) — no imports needed
-- Unit tests: `src/test/unit/` — fast, no canvas
-- Simulator tests: `src/test/simulator/` — generate PNG to `tests/output/`
+- Unit tests: `src/__test__/unit/` — fast, no canvas, mock Mongoose models with `vi.mock()`
+- Simulator tests: `src/__test__/simulator/` — generate PNG to `tests/output/`
 - `CustomReporter.ts` provides emoji/color output formatting
 
 ## Error System
@@ -106,17 +188,18 @@ throw new DomainError(ErrorCode.HEXBOARD_POSITION_OCCUPIED, 'mensaje');
 ```
 
 **Códigos definidos en `ErrorCode`:**
-| Código | Origen |
-|---|---|
-| `HEXAGON_INVALID_SIZE` | `Hexagon` constructor |
-| `HEXAGON_ROTATION_OUT_OF_RANGE` | `Hexagon.rotate()` |
-| `HEXAGON_INDEX_OUT_OF_RANGE` | `Hexagon.getElement()` |
-| `HEXBOARD_OUT_OF_BOUNDS` | `HexBoard.placeHex()` |
-| `HEXBOARD_POSITION_OCCUPIED` | `HexBoard.placeHex()` |
-| `HEXBOARD_NO_ADJACENT` | `HexBoard.placeHex()` |
-| `HEXBOARD_NEIGHBOR_CONFLICT` | `HexBoard.placeHex()` |
-| `NOT_FOUND` | `NotFoundError` |
-| `INTERNAL_ERROR` | errores inesperados (middleware) |
+| Código | HTTP | Origen |
+|---|---|---|
+| `HEXAGON_INVALID_SIZE` | 400 | `Hexagon` constructor |
+| `HEXAGON_ROTATION_OUT_OF_RANGE` | 400 | `Hexagon.rotate()` |
+| `HEXAGON_INDEX_OUT_OF_RANGE` | 400 | `Hexagon.getElement()` |
+| `HEXBOARD_OUT_OF_BOUNDS` | 400 | `HexBoard.placeHex()` |
+| `HEXBOARD_POSITION_OCCUPIED` | 400 | `HexBoard.placeHex()` |
+| `HEXBOARD_NO_ADJACENT` | 400 | `HexBoard.placeHex()` |
+| `HEXBOARD_NEIGHBOR_CONFLICT` | 400 | `HexBoard.placeHex()` |
+| `NOT_FOUND` | 404 | `NotFoundError` |
+| `PLAYER_NOT_AUTHENTICATED` | 401 | `authMiddleware` |
+| `INTERNAL_ERROR` | 500 | errores inesperados (middleware) |
 
 **Tests — helper para verificar tipo y código:**
 ```typescript
@@ -129,16 +212,31 @@ function expectDomainError(fn: () => unknown, code: ErrorCode): void {
 ```
 
 ## API Pattern
+
+### Routes protegidas
 ```typescript
-// Controllers extend BaseController; useController handles errors + response
-export class WorldController extends BaseController {
-  getMap = async () => { /* this.req, this.res, this.user available */ }
-}
-// In routes:
-router.get('/map', (req, res) => useController(WorldController, req, res, c => c.getMap()))
+// authMiddleware siempre antes de useController en rutas protegidas
+router.get('/current', authMiddleware, useController(AreaController, c => c.getPlayerArea));
 ```
 
+### Controllers
+```typescript
+// Controllers extienden BaseController
+// this.user.id es siempre string en rutas protegidas (authMiddleware garantiza el sub)
+export default class AreaController extends BaseController {
+    getPlayerArea = async () => {
+        return service.getOrCreatePlayerArea(this.user.id!);
+    };
+}
+```
+
+### Endpoints actuales
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| GET | `/area/current` | ✅ | Devuelve el área actual del jugador (la crea si es la primera vez) |
+| GET | `/world/map` | ❌ | Stub — sin implementar |
+
 ## Important Notes
-- No database — all state is in-memory; generation is purely algorithmic
-- Keycloak auth is stubbed via types only — `req.user` comes from Keycloak token
 - `tsc-alias` runs post-build to rewrite `@/` aliases in `dist/`
+- Keycloak public key is read from `KEYCLOAK_PUBLIC_KEY` env var (raw Base64 from Realm Settings)
+- Area coordinates are unbounded integers — the world is infinite

@@ -5,6 +5,6 @@ const service = new AreaService();
 
 export default class AreaController extends BaseController {
     getPlayerArea = async () => {
-        return service.getOrCreatePlayerArea(this.user.id!);
+        return service.getOrCreateArea(this.player);
     };
 }
