@@ -9,5 +9,6 @@ export enum ErrorCode {
     HEXBOARD_NEIGHBOR_CONFLICT    = 'HEXBOARD_NEIGHBOR_CONFLICT',
 
     NOT_FOUND                     = 'NOT_FOUND',
+    PLAYER_NOT_AUTHENTICATED      = 'PLAYER_NOT_AUTHENTICATED',
     INTERNAL_ERROR                = 'INTERNAL_ERROR',
 }

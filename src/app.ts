@@ -1,6 +1,7 @@
 import express from "express";
 import morgan from "morgan";
 import worldRoutes from "@/routes/world.routes.js";
+import areaRoutes from "@/routes/area.routes.js";
 import { errorMiddleware } from "@/middlewares/error.middleware.js";
 
 export const createApp = () => {
@@ -14,6 +15,7 @@ export const createApp = () => {
 
     app.use(express.json());
     app.use("/world", worldRoutes);
+    app.use("/area", areaRoutes);
 
     app.use(errorMiddleware);
 
